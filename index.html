@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en" data-bs-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimDiff: Simulator-constrained Diffusion Model for Physically Plausible Motion Generation</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Custom styles – compact physics sliders with distinct palettes -->
+  <style>
+    /* ===== helpers ===== */
+    video{width:100%;height:auto;display:block}
+    .mmm-card{border:2px solid #ff9090}
+
+    /* ===== physics-parameter block (slim) ===== */
+    .physics-params{
+      background:#f8f9fa;
+      border:1px solid rgba(0,0,0,.05);
+      border-radius:8px;
+      padding:8px;
+      margin:8px 0;
+    }
+
+    .param-slider-container{display:flex;flex-direction:column;gap:8px;}
+    .param-row{display:flex;align-items:center;gap:8px;font-size:13px;}
+
+    .param-icon{font-size:16px;line-height:1;min-width:16px;text-align:center;}
+    .param-label{width:60px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
+
+    /* ---- slim slider ---- */
+    .param-slider{
+      flex:1;height:4px;border-radius:2px;background:#dee2e6;
+      outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;position:relative;
+    }
+    .param-slider::-webkit-slider-thumb{
+      -webkit-appearance:none;appearance:none;width:12px;height:12px;
+      border-radius:50%;background:#fff;border:1px solid #6c757d;cursor:pointer;
+    }
+    .param-slider::-moz-range-thumb{
+      width:12px;height:12px;border-radius:50%;background:#fff;border:1px solid #6c757d;cursor:pointer;
+    }
+
+    .param-value{min-width:40px;text-align:center;font-weight:700;font-size:12px;}
+
+    /* ---- intensity colours (gravity only) ---- */
+    .intensity-low   {color:#2ecc71;}   /* green   */
+    .intensity-medium{color:#f1c40f;}   /* yellow  */
+    .intensity-high  {color:#e74c3c;}   /* red     */
+
+    /* ---- slider track tints ---- */
+    /* Gravity: green → yellow → red  (distinct from wind) */
+    .gravity-slider{
+      background:linear-gradient(to right,#2ecc71 0%,#f1c40f 50%,#e74c3c 100%);
+    }
+    /* Wind: blue → grey → orange (既存) */
+    .wind-slider{
+      background:linear-gradient(to right,#3498db 0%,#95a5a6 50%,#e67e22 100%);
+    }
+
+    /* wind-direction icon colours */
+    .wind-negative{color:#3498db;}
+    .wind-zero    {color:#95a5a6;}
+    .wind-positive{color:#e67e22;}
+
+    /* ===== responsive grid ===== */
+    .env-grid{
+      display:grid;gap:1.5rem;grid-template-columns:repeat(5,1fr);
+      max-width:2500px;margin-inline:auto;
+    }
+    @media(max-width:1400px){
+      .env-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
+    }
+
+    /* ===== legend ===== */
+    .physics-legend{
+      background:#fff;border:1px solid rgba(0,0,0,.05);
+      border-radius:8px;padding:16px;margin:16px auto;
+      max-width:800px;box-shadow:0 2px 6px rgba(0,0,0,.06);
+    }
+    .physics-legend h6{
+      font-size:13px;font-weight:700;text-transform:uppercase;
+      letter-spacing:.8px;margin-bottom:16px;
+    }
+    .legend-row{display:flex;align-items:center;gap:16px;margin:8px 0;font-size:12px;}
+    .legend-label{min-width:100px;font-weight:600;color:#555;}
+    .legend-gradient{
+      flex:1;height:12px;border-radius:6px;box-shadow:inset 0 1px 2px rgba(0,0,0,.08);
+    }
+    /* updated gradients for legend */
+    .intensity-gradient{ /* green → yellow → red */
+      background:linear-gradient(to right,#2ecc71 0%,#f1c40f 50%,#e74c3c 100%);
+    }
+    .wind-direction-gradient{ /* blue → grey → orange */
+      background:linear-gradient(to right,#3498db 0%,#95a5a6 50%,#e67e22 100%);
+    }
+  </style>
+</head>
+
+
+
+  <body>
+    <main class="container-fluid px-lg-5">
+
+      <!-- ===== TITLE ===== -->
+      <section class="py-5 text-center">
+        <h1 class="mb-3">SimDiff: Simulator-constrained Diffusion Model for Physically Plausible Motion Generation</h1>
+        <h5 class="mb-4">Anonymous</h5>
+      </section>
+
+      <!-- Enhanced Physics Parameter Legend -->
+      <!-- <section class="container mb-4">
+        <div class="physics-legend">
+          <h6 class="mb-3 text-center">Physics Parameter Visualization Guide</h6>
+          <div class="legend-row">
+            <span class="legend-label">Intensity:</span>
+            <div class="legend-gradient intensity-gradient"></div>
+            <span class="legend-values">Low → Medium → High</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-label">Wind Direction:</span>
+            <div class="legend-gradient wind-direction-gradient"></div>
+            <span class="legend-values">Negative ← Zero → Positive</span>
+          </div>
+        </div>
+      </section> -->
+
+      <!-- ============ BENCHMARK PROMPTS (Sitting / Backflip / Crawl) ============ -->
+      <section class="album py-5 bg-body-tertiary">
+        <div class="container">
+
+          <!-- Prompt 1 : Sitting -->
+          <h2 class="text-center mb-4">Prompt ① — "Person is adjusting their sitting position."</h2>
+          <div class="row row-cols-1 row-cols-sm-3 g-3 mb-5">
+
+            <!-- MDM Original -->
+            <div class="col">
+              <div class="card h-100 shadow-sm">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/sitting/mdm_official_2877_mesh.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text">MDM (Original)</p></div>
+              </div>
+            </div>
+
+            <!-- MDM + PhysDiff -->
+            <div class="col">
+              <div class="card h-100 shadow-sm">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/sitting/physdiff_fullseq_mesh.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text">MDM + PhysDiff</p></div>
+              </div>
+            </div>
+
+            <!-- MDM + SimDiff -->
+            <div class="col">
+              <div class="card h-100 shadow-sm mmm-card">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/sitting/mdm_bin_env_2877_mesh.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text"><strong>MDM + SimDiff</strong></p></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prompt 2 : Backflip -->
+          <h2 class="text-center mb-4">Prompt ② — "A person does a backflip."</h2>
+          <div class="row row-cols-1 row-cols-sm-3 g-3 mb-5">
+
+            <!-- MDM Original -->
+            <div class="col">
+              <div class="card h-100 shadow-sm">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/backflip/backflip_mdm.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text">MDM (Original)</p></div>
+              </div>
+            </div>
+
+            <!-- MDM + PhysDiff -->
+            <div class="col">
+              <div class="card h-100 shadow-sm">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/backflip/backflip_physdiff.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text">MDM + PhysDiff</p></div>
+              </div>
+            </div>
+
+            <!-- MDM + SimDiff -->
+            <div class="col">
+              <div class="card h-100 shadow-sm mmm-card">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/backflip/backflip_simdiff.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text"><strong>MDM + SimDiff</strong></p></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prompt 3 : Crawl -->
+          <h2 class="text-center mb-4">Prompt ③ — "A person gets down on the floor and crawls forward."</h2>
+          <div class="row row-cols-1 row-cols-sm-3 g-3">
+
+            <!-- MDM Original -->
+            <div class="col">
+              <div class="card h-100 shadow-sm">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/crawl/mdm_crawl.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text">MDM (Original)</p></div>
+              </div>
+            </div>
+
+            <!-- MDM + PhysDiff -->
+            <div class="col">
+              <div class="card h-100 shadow-sm">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/crawl/physdiff_crawl.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text">MDM + PhysDiff</p></div>
+              </div>
+            </div>
+
+            <!-- MDM + SimDiff -->
+            <div class="col">
+              <div class="card h-100 shadow-sm mmm-card">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/binary_exp/crawl/simdiff_crawl.mp4" type="video/mp4">
+                </video>
+                <div class="card-body"><p class="card-text"><strong>MDM + SimDiff</strong></p></div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== EXPERIMENT I : Gravity ======================== -->
+      <section class="py-5 bg-body-tertiary">
+        <h2 class="text-center">✦ Gravity Variation (wind = 0)</h2>
+        <p class="lead text-center mb-4">
+          Prompt: "A person runs forward steadily."
+        </p>
+
+        <div class="container">
+          <div class="row row-cols-1 row-cols-md-3 g-3">
+
+            <!-- g = −1.23 -->
+            <div class="col">
+              <div class="card shadow-sm h-100">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/multienv_exp/run/run_-1.23.mp4" type="video/mp4">
+                </video>
+
+                <div class="physics-params">
+                  <div class="param-slider-container">
+                    <div class="param-row">
+                      <div class="param-icon intensity-low">⬇</div>
+                      <div class="param-label">Gravity</div>
+                      <input type="range" class="param-slider gravity-slider" min="0" max="100" value="20" disabled>
+                      <div class="param-value intensity-low">1.23</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↔</div>
+                      <div class="param-label">Wind X</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↕</div>
+                      <div class="param-label">Wind Y</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-body text-center"><p class="card-text"><strong>Low Gravity (Moon-like)</strong></p></div>
+              </div>
+            </div>
+
+            <!-- g = −9.81 -->
+            <div class="col">
+              <div class="card shadow-sm h-100">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/multienv_exp/run/run_-9.81.mp4" type="video/mp4">
+                </video>
+
+                <div class="physics-params">
+                  <div class="param-slider-container">
+                    <div class="param-row">
+                      <div class="param-icon intensity-medium">⬇</div>
+                      <div class="param-label">Gravity</div>
+                      <input type="range" class="param-slider gravity-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value intensity-medium">9.81</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↔</div>
+                      <div class="param-label">Wind X</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↕</div>
+                      <div class="param-label">Wind Y</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-body text-center"><p class="card-text"><strong>Earth Gravity</strong></p></div>
+              </div>
+            </div>
+
+            <!-- g = −24.8 -->
+            <div class="col">
+              <div class="card shadow-sm h-100">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/multienv_exp/run/run_-24.8.mp4" type="video/mp4">
+                </video>
+
+                <div class="physics-params">
+                  <div class="param-slider-container">
+                    <div class="param-row">
+                      <div class="param-icon intensity-high">⬇</div>
+                      <div class="param-label">Gravity</div>
+                      <input type="range" class="param-slider gravity-slider" min="0" max="100" value="80" disabled>
+                      <div class="param-value intensity-high">24.8</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↔</div>
+                      <div class="param-label">Wind X</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↕</div>
+                      <div class="param-label">Wind Y</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-body text-center"><p class="card-text"><strong>High Gravity</strong></p></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== EXPERIMENT II : Wind ======================== -->
+      <section class="py-5 bg-body-tertiary">
+        <h2 class="text-center">✦ Planar Wind Variation (g = −9.81)</h2>
+        <p class="lead text-center mb-4">
+          Prompt: "A person steps forwards carefully."
+        </p>
+
+        <div class="container">
+          <div class="row row-cols-1 row-cols-md-3 g-3">
+
+            <!-- wind (0,0) -->
+            <div class="col">
+              <div class="card shadow-sm h-100">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/multienv_exp/walk/walk_0_0.mp4" type="video/mp4">
+                </video>
+
+                <div class="physics-params">
+                  <div class="param-slider-container">
+                    <div class="param-row">
+                      <div class="param-icon intensity-medium">⬇</div>
+                      <div class="param-label">Gravity</div>
+                      <input type="range" class="param-slider gravity-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value intensity-medium">9.81</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↔</div>
+                      <div class="param-label">Wind X</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↕</div>
+                      <div class="param-label">Wind Y</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-body text-center"><p class="card-text"><strong>No Wind</strong></p></div>
+              </div>
+            </div>
+
+            <!-- wind (−1,0) -->
+            <div class="col">
+              <div class="card shadow-sm h-100">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/multienv_exp/walk/walk_-1_0.mp4" type="video/mp4">
+                </video>
+
+                <div class="physics-params">
+                  <div class="param-slider-container">
+                    <div class="param-row">
+                      <div class="param-icon intensity-medium">⬇</div>
+                      <div class="param-label">Gravity</div>
+                      <input type="range" class="param-slider gravity-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value intensity-medium">9.81</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-negative">←</div>
+                      <div class="param-label">Wind X</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="20" disabled>
+                      <div class="param-value wind-negative">-1.0</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↕</div>
+                      <div class="param-label">Wind Y</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-body text-center"><p class="card-text"><strong>Wind Left</strong></p></div>
+              </div>
+            </div>
+
+            <!-- wind (0,−1) -->
+            <div class="col">
+              <div class="card shadow-sm h-100">
+                <video controls autoplay muted loop playsinline>
+                  <source src="assets/multienv_exp/walk/walk_0_-1.mp4" type="video/mp4">
+                </video>
+
+                <div class="physics-params">
+                  <div class="param-slider-container">
+                    <div class="param-row">
+                      <div class="param-icon intensity-medium">⬇</div>
+                      <div class="param-label">Gravity</div>
+                      <input type="range" class="param-slider gravity-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value intensity-medium">9.81</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-zero">↔</div>
+                      <div class="param-label">Wind X</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                      <div class="param-value wind-zero">0</div>
+                    </div>
+                    <div class="param-row">
+                      <div class="param-icon wind-negative">↓</div>
+                      <div class="param-label">Wind Y</div>
+                      <input type="range" class="param-slider wind-slider" min="0" max="100" value="20" disabled>
+                      <div class="param-value wind-negative">-1.0</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-body text-center"><p class="card-text"><strong>Wind Forward</strong></p></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- =============== COMPOSITIONAL GENERALISATION (Jump grid) =============== -->
+      <section class="py-5 bg-body-tertiary">
+        <h2 class="text-center">✦ Compositional Generalisation to Unseen Environment</h2>
+        <p class="lead text-center mb-4">
+          Prompt: "A person jumps high from a standing position."
+        </p>
+
+        <div class="env-grid">
+
+          <!-- g -9.81, w 0 0 -->
+          <div class="card shadow-sm">
+            <video controls autoplay muted loop playsinline>
+              <source src="assets/multienv_exp/jump/g_-9.81_x_0_y_0.mp4" type="video/mp4">
+            </video>
+
+            <div class="physics-params">
+              <div class="param-slider-container">
+                <div class="param-row">
+                  <div class="param-icon intensity-medium">⬇</div>
+                  <div class="param-label">Gravity</div>
+                  <input type="range" class="param-slider gravity-slider" min="0" max="100" value="50" disabled>
+                  <div class="param-value intensity-medium">9.81</div>
+                </div>
+                <div class="param-row">
+                  <div class="param-icon wind-zero">↔</div>
+                  <div class="param-label">Wind X</div>
+                  <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                  <div class="param-value wind-zero">0</div>
+                </div>
+                <div class="param-row">
+                  <div class="param-icon wind-zero">↕</div>
+                  <div class="param-label">Wind Y</div>
+                  <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                  <div class="param-value wind-zero">0</div>
+              </div>
+            </div>
+            </div>
+            <div class="card-body text-center"><p class="card-text">Earth + No Wind</p></div>
+          </div>
+
+          <!-- g -1.62, w 0 0 -->
+          <div class="card shadow-sm">
+            <video controls autoplay muted loop playsinline>
+              <source src="assets/multienv_exp/jump/g_-1.62_x_0_y_0.mp4" type="video/mp4">
+            </video>
+
+            <div class="physics-params">
+              <div class="param-slider-container">
+                <div class="param-row">
+                  <div class="param-icon intensity-low">⬇</div>
+                  <div class="param-label">Gravity</div>
+                  <input type="range" class="param-slider gravity-slider" min="0" max="100" value="25" disabled>
+                  <div class="param-value intensity-low">1.62</div>
+                </div>
+                <div class="param-row">
+                  <div class="param-icon wind-zero">↔</div>
+                  <div class="param-label">Wind X</div>
+                  <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                  <div class="param-value wind-zero">0</div>
+                </div>
+                <div class="param-row">
+                  <div class="param-icon wind-zero">↕</div>
+                  <div class="param-label">Wind Y</div>
+                  <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                  <div class="param-value wind-zero">0</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-body text-center"><p class="card-text">Moon + No Wind</p></div>
+          </div>
+
+          <!-- g -1.62, w 2 0 -->
+          <div class="card shadow-sm">
+            <video controls autoplay muted loop playsinline>
+              <source src="assets/multienv_exp/jump/g_-1.62_x_2_y_0.mp4" type="video/mp4">
+            </video>
+
+            <div class="physics-params">
+              <div class="param-slider-container">
+                <div class="param-row">
+                  <div class="param-icon intensity-low">⬇</div>
+                  <div class="param-label">Gravity</div>
+                  <input type="range" class="param-slider gravity-slider" min="0" max="100" value="25" disabled>
+                  <div class="param-value intensity-low">1.62</div>
+                </div>
+                <div class="param-row">
+                  <div class="param-icon wind-positive">→</div>
+                  <div class="param-label">Wind X</div>
+                  <input type="range" class="param-slider wind-slider" min="0" max="100" value="80" disabled>
+                  <div class="param-value wind-positive">2.0</div>
+                </div>
+                <div class="param-row">
+                  <div class="param-icon wind-zero">↕</div>
+                  <div class="param-label">Wind Y</div>
+                  <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                  <div class="param-value wind-zero">0</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-body text-center"><p class="card-text">Moon + Wind Right</p></div>
+          </div>
+
+          <!-- g -1.62, w 0 2 -->  
+          <div class="card shadow-sm">
+            <video controls autoplay muted loop playsinline>
+             <source src="assets/multienv_exp/jump/g_-1.62_x_0_y_2.mp4" type="video/mp4">
+           </video>
+
+           <div class="physics-params">
+             <div class="param-slider-container">
+               <div class="param-row">
+                 <div class="param-icon intensity-low">⬇</div>
+                 <div class="param-label">Gravity</div>
+                 <input type="range" class="param-slider gravity-slider" min="0" max="100" value="25" disabled>
+                 <div class="param-value intensity-low">1.62</div>
+               </div>
+               <div class="param-row">
+                 <div class="param-icon wind-zero">↔</div>
+                 <div class="param-label">Wind X</div>
+                 <input type="range" class="param-slider wind-slider" min="0" max="100" value="50" disabled>
+                 <div class="param-value wind-zero">0</div>
+               </div>
+               <div class="param-row">
+                 <div class="param-icon wind-positive">↑</div>
+                 <div class="param-label">Wind Y</div>
+                 <input type="range" class="param-slider wind-slider" min="0" max="100" value="80" disabled>
+                 <div class="param-value wind-positive">2.0</div>
+               </div>
+             </div>
+           </div>
+
+           <div class="card-body text-center"><p class="card-text">Moon + Wind Backward</p></div>
+         </div>
+
+         <!-- g -1.62, w 2 2 -->
+         <div class="card shadow-sm">
+           <video controls autoplay muted loop playsinline>
+             <source src="assets/multienv_exp/jump/g_-1.62_x_2_y_2.mp4" type="video/mp4">
+           </video>
+
+           <div class="physics-params">
+             <div class="param-slider-container">
+               <div class="param-row">
+                 <div class="param-icon intensity-low">⬇</div>
+                 <div class="param-label">Gravity</div>
+                 <input type="range" class="param-slider gravity-slider" min="0" max="100" value="25" disabled>
+                 <div class="param-value intensity-low">1.62</div>
+               </div>
+               <div class="param-row">
+                 <div class="param-icon wind-positive">→</div>
+                 <div class="param-label">Wind X</div>
+                 <input type="range" class="param-slider wind-slider" min="0" max="100" value="80" disabled>
+                 <div class="param-value wind-positive">2.0</div>
+               </div>
+               <div class="param-row">
+                 <div class="param-icon wind-positive">↑</div>
+                 <div class="param-label">Wind Y</div>
+                 <input type="range" class="param-slider wind-slider" min="0" max="100" value="80" disabled>
+                 <div class="param-value wind-positive">2.0</div>
+               </div>
+             </div>
+           </div>
+
+           <div class="card-body text-center"><p class="card-text">Moon + Wind Diagonal</p></div>
+         </div>
+
+       </div>
+     </section>
+
+   </main>
+ </body>
+</html>
