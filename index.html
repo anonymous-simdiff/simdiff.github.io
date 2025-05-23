@@ -13,8 +13,24 @@
   <style>
     /* ===== helpers ===== */
     video{width:100%;height:auto;display:block}
-    .mmm-card{border:2px solid #ff9090}
 
+    .mmm-card{
+      position:relative; 
+      border:2px solid #ff9090;
+      }
+    .mmm-card::before{
+      content:"SimDiff";
+      position:absolute;
+      top:6px; left:6px; 
+      padding:2px 8px;
+      font-size:12px;
+      font-weight:700;
+      line-height:1;
+      color:#fff;
+      background:rgba(0,0,0,.75);
+      border-radius:4px;
+      pointer-events:none;
+    }
     /* ===== physics-parameter block (slim) ===== */
     .physics-params{
       background:#f8f9fa;
@@ -96,6 +112,16 @@
     .wind-direction-gradient{ /* blue → grey → orange */
       background:linear-gradient(to right,#3498db 0%,#95a5a6 50%,#e67e22 100%);
     }
+
+  .env-grid .param-row{
+    gap:2px;
+    font-size:7px;
+  }
+
+  .env-grid .param-label{
+    width:50px; 
+  }
+
   </style>
 </head>
 
@@ -109,23 +135,6 @@
         <h1 class="mb-3">SimDiff: Simulator-constrained Diffusion Model for Physically Plausible Motion Generation</h1>
         <h5 class="mb-4">Anonymous</h5>
       </section>
-
-      <!-- Enhanced Physics Parameter Legend -->
-      <!-- <section class="container mb-4">
-        <div class="physics-legend">
-          <h6 class="mb-3 text-center">Physics Parameter Visualization Guide</h6>
-          <div class="legend-row">
-            <span class="legend-label">Intensity:</span>
-            <div class="legend-gradient intensity-gradient"></div>
-            <span class="legend-values">Low → Medium → High</span>
-          </div>
-          <div class="legend-row">
-            <span class="legend-label">Wind Direction:</span>
-            <div class="legend-gradient wind-direction-gradient"></div>
-            <span class="legend-values">Negative ← Zero → Positive</span>
-          </div>
-        </div>
-      </section> -->
 
       <!-- ============ BENCHMARK PROMPTS (Sitting / Backflip / Crawl) ============ -->
       <section class="album py-5 bg-body-tertiary">
@@ -251,7 +260,7 @@
 
             <!-- g = −1.23 -->
             <div class="col">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm h-100 mmm-card">
                 <video controls autoplay muted loop playsinline>
                   <source src="assets/multienv_exp/run/run_-1.23.mp4" type="video/mp4">
                 </video>
@@ -285,7 +294,7 @@
 
             <!-- g = −9.81 -->
             <div class="col">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm h-100 mmm-card">
                 <video controls autoplay muted loop playsinline>
                   <source src="assets/multienv_exp/run/run_-9.81.mp4" type="video/mp4">
                 </video>
@@ -319,7 +328,7 @@
 
             <!-- g = −24.8 -->
             <div class="col">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm h-100 mmm-card">
                 <video controls autoplay muted loop playsinline>
                   <source src="assets/multienv_exp/run/run_-24.8.mp4" type="video/mp4">
                 </video>
@@ -367,7 +376,7 @@
 
             <!-- wind (0,0) -->
             <div class="col">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm h-100 mmm-card">
                 <video controls autoplay muted loop playsinline>
                   <source src="assets/multienv_exp/walk/walk_0_0.mp4" type="video/mp4">
                 </video>
@@ -401,7 +410,7 @@
 
             <!-- wind (−1,0) -->
             <div class="col">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm h-100 mmm-card">
                 <video controls autoplay muted loop playsinline>
                   <source src="assets/multienv_exp/walk/walk_-1_0.mp4" type="video/mp4">
                 </video>
@@ -435,7 +444,7 @@
 
             <!-- wind (0,−1) -->
             <div class="col">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm h-100 mmm-card">
                 <video controls autoplay muted loop playsinline>
                   <source src="assets/multienv_exp/walk/walk_0_-1.mp4" type="video/mp4">
                 </video>
@@ -481,7 +490,7 @@
         <div class="env-grid">
 
           <!-- g -9.81, w 0 0 -->
-          <div class="card shadow-sm">
+          <div class="card shadow-sm mmm-card">
             <video controls autoplay muted loop playsinline>
               <source src="assets/multienv_exp/jump/g_-9.81_x_0_y_0.mp4" type="video/mp4">
             </video>
@@ -512,7 +521,7 @@
           </div>
 
           <!-- g -1.62, w 0 0 -->
-          <div class="card shadow-sm">
+          <div class="card shadow-sm mmm-card">
             <video controls autoplay muted loop playsinline>
               <source src="assets/multienv_exp/jump/g_-1.62_x_0_y_0.mp4" type="video/mp4">
             </video>
@@ -544,7 +553,7 @@
           </div>
 
           <!-- g -1.62, w 2 0 -->
-          <div class="card shadow-sm">
+          <div class="card shadow-sm mmm-card">
             <video controls autoplay muted loop playsinline>
               <source src="assets/multienv_exp/jump/g_-1.62_x_2_y_0.mp4" type="video/mp4">
             </video>
@@ -576,7 +585,7 @@
           </div>
 
           <!-- g -1.62, w 0 2 -->  
-          <div class="card shadow-sm">
+          <div class="card shadow-sm mmm-card">
             <video controls autoplay muted loop playsinline>
              <source src="assets/multienv_exp/jump/g_-1.62_x_0_y_2.mp4" type="video/mp4">
            </video>
@@ -608,7 +617,7 @@
          </div>
 
          <!-- g -1.62, w 2 2 -->
-         <div class="card shadow-sm">
+         <div class="card shadow-sm mmm-card">
            <video controls autoplay muted loop playsinline>
              <source src="assets/multienv_exp/jump/g_-1.62_x_2_y_2.mp4" type="video/mp4">
            </video>
